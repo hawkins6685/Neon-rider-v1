@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Rider | GitHub Pages Edition</title>
+    
+    <!-- Dependencies (Strict HTTPS) -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;900&display=swap');
+        body { margin: 0; background-color: #050505; font-family: 'Inter', sans-serif; color: white; overflow: hidden; }
+        #loading-screen {
+            position: fixed; inset: 0; background: #000; z-index: 9999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.5s ease-out;
+        }
+        .loader-bar { width: 200px; height: 2px; background: rgba(0, 242, 255, 0.1); margin-top: 20px; overflow: hidden; position: relative; }
+        .loader-progress { position: absolute; left: 0; top: 0; height: 100%; background: #00f2ff; width: 0%; transition: width 0.3s; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="text-cyan-400 font-black tracking-[0.3em] text-xs animate-pulse">BOOTING SYSTEM...</div>
+        <div class="loader-bar"><div id="loader-fill" class="loader-progress"></div></div>
+        <div id="error-log" class="mt-4 text-[10px] text-red-500/60 font-mono"></div>
+    </div>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        console.log("🚀 Script Initialization Started");
+        const { useState, useEffect, useRef } = React;
+
+        class MainScene extends Phaser.Scene {
+            constructor(callbacks) {
+                super('MainScene');
+                this.updateScoreCallback = callbacks.onUpdateScore;
+                this.isGameOver = true;
+            }
+
+            preload() {
+                console.log("🎮 Preload: Fetching Assets...");
+                const loadingFill = document.getElementById('loader-fill');
+                
+                this.load.on('progress', (value) => {
+                    if (loadingFill) loadingFill.style.width = (value * 100) + '%';
+                });
+
+                // Safety: Catch individual file errors
+                this.load.on('loaderror', (file) => {
+                    console.error("❌ Failed to load asset:", file.src);
+                    const log = document.getElementById('error-log');
+                    if (log) log.innerText = "Warning: Asset issue detected. Proceeding...";
+                });
+
+                // Asset URLs (HTTPS ONLY)
+                const BASE = "https://i.postimg.cc";
+                this.load.image('bike', `${BASE}/hv0ZQZtc/motorcycle-black.png`);
+                this.load.image('car', `${BASE}/tJrGP4B3/car-green-2.png`);
+                this.load.image('cone', `${BASE}/BvV0X6wv/cone-straight.png`);
+
+                // Create placeholder texture
+                const graphics = this.make.graphics({ x: 0, y: 0 });
+                graphics.fillStyle(0xffffff).fillCircle(4, 4, 4);
+                graphics.generateTexture('trail', 8, 8);
+                graphics.destroy();
+            }
+
+            create() {
+                console.log("✅ Create: Game Scene Ready");
+                const loader = document.getElementById('loading-screen');
+                if (loader) {
+                    loader.style.opacity = '0';
+                    setTimeout(() => loader.remove(), 600);
+                }
+
+                const { width, height } = this.scale;
+                this.add.rectangle(width/2, height/2, width, height, 0x010c1c);
+                
+                this.player = this.add.sprite(width/2, height - 100, 'bike');
+                this.player.setScale(0.15).setTint(0x00f2ff);
+                this.physics.add.existing(this.player);
+                this.physics.resume();
+                this.isGameOver = false;
+            }
+
+            update() {
+                if (this.isGameOver) return;
+                this.updateScoreCallback(Math.floor(this.time.now / 100));
+            }
+        }
+
+        const App = () => {
+            const [score, setScore] = useState(0);
+            const gameRef = useRef(null);
+
+            useEffect(() => {
+                console.log("⚛️ React: Mounting App");
+                const config = {
+                    type: Phaser.AUTO,
+                    width: 400, height: 600,
+                    parent: 'game-container', // MATCHES THE DIV BELOW
+                    physics: { default: 'arcade' },
+                    scene: new MainScene({ onUpdateScore: (s) => setScore(s) }),
+                    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }
+                };
+
+                try {
+                    gameRef.current = new Phaser.Game(config);
+                    console.log("⚙️ Phaser: Instance Created");
+                } catch (e) {
+                    console.error("💥 Phaser: Critical Error", e);
+                }
+
+                return () => gameRef.current?.destroy(true);
+            }, []);
+
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4">
+                    <div className="relative w-full max-w-[400px] aspect-[2/3] bg-black rounded-[32px] overflow-hidden shadow-2xl border border-white/10">
+                        {/* Parent ID for Phaser match */}
+                        <div id="game-container" className="w-full h-full" />
+                        
+                        <div className="absolute top-6 left-6 right-6 flex justify-between pointer-events-none">
+                            <div className="glass px-4 py-2 rounded-xl">
+                                <p className="text-[10px] text-white/40 uppercase font-black">Score</p>
+                                <p className="text-xl font-black text-cyan-400">{score}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
